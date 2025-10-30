@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LG — Logo Generator</title>
+<style>
+:root{
+  --bg:#f4f6f8;--text:#222;--btn:#007bff;--btn-hover:#0056b3;--card:#fff;
+}
+body.dark{
+  --bg:#1e1f22;--text:#eee;--btn:#3399ff;--btn-hover:#1e80ff;--card:#2a2b2f;
+}
+body{
+  font-family:Arial, sans-serif;
+  background:var(--bg);color:var(--text);
+  margin:0;padding:0;
+  display:flex;flex-direction:column;align-items:center;
+  min-height:100vh;
+  transition:background .3s,color .3s;
+}
+h1{margin:10px 0;}
+input,button{
+  width:90%;max-width:400px;margin:5px 0;
+  padding:10px;font-size:16px;border-radius:8px;
+  border:1px solid #ccc;
+}
+button{background:var(--btn);color:#fff;border:none;cursor:pointer}
+button:hover{background:var(--btn-hover)}
+img{
+  margin-top:15px;max-width:300px;border-radius:10px;
+  box-shadow:0 0 8px rgba(0,0,0,0.2);display:none;
+}
+#history{
+  margin-top:20px;width:90%;max-width:500px;
+  display:flex;flex-wrap:wrap;gap:10px;justify-content:center;
+}
+#history img{
+  width:80px;height:80px;object-fit:cover;cursor:pointer;
+}
+.theme-toggle{
+  position:fixed;top:10px;right:10px;
+  background:var(--btn);border:none;color:#fff;
+  border-radius:50%;width:40px;height:40px;
+  font-size:20px;cursor:pointer;
+}
+</style>
+</head>
+<body>
+<button class="theme-toggle" id="themeBtn">☀️</button>
+<h1 id="title">AI Logo Generator</h1>
+<input id="brand" placeholder="Brand name / Название бренда">
+<input id="style" placeholder="Style (e.g. minimalism) / Стиль (напр. минимализм)">
+<button id="generateBtn">Generate Logo</button>
+<img id="result" alt="logo">
+<div>
+  <button id="againBtn" style="display:none;">Generate Again</button>
+  <button id="downloadBtn" style="display:none;">Download Logo</button>
+</div>
+<div id="history"></div>
+
+<script>
+const apiToken = "r8_bzMz1mcT6tjCqzoZX6nqA1b49hgJUoa1NIadk"; 
+
+const lang = navigator.language.startsWith('ru') ? 'ru':'en';
+const text={
+  ru:{title:"Генератор логотипов ИИ",gen:"Создать логотип",again:"Сгенерировать ещё",dl:"Скачать логотип",
+      fill:"Заполни все поля!",creating:"Создание...",error:"Ошибка генерации"},
+  en:{title:"AI Logo Generator",gen:"Generate Logo",again:"Generate Again",dl:"Download Logo",
+      fill:"Please fill all fields!",creating:"Generating...",error:"Generation error"}
+}[lang];
+
+const body=document.body;
+const title=document.getElementById('title');
+const brand=document.getElementById('brand');
+const styleIn=document.getElementById('style');
+const genBtn=document.getElementById('generateBtn');
+const againBtn=document.getElementById('againBtn');
+const dlBtn=document.getElementById('downloadBtn');
+const img=document.getElementById('result');
+const hist=document.getElementById('history');
+const themeBtn=document.getElementById('themeBtn');
+
+title.textContent=text.title;
+genBtn.textContent=text.gen;
+againBtn.textContent=text.again;
+dlBtn.textContent=text.dl;
+
+// theme toggle
+themeBtn.onclick=()=>{
+  body.classList.toggle('dark');
+  themeBtn.textContent=body.classList.contains('dark')?'🌙':'☀️';
+};
+
+// generation
+async function generateLogo(){
+  const brandName=brand.value.trim();
+  const style=styleIn.value.trim();
+  if(!brandName||!style) return alert(text.fill);
+  genBtn.disabled=true;
+  genBtn.textContent=text.creating;
+  img.style.display="none";dlBtn.style.display="none";againBtn.style.display="none";
+
+  const prompt=lang==='ru'
+    ?`Логотип для бренда "${brandName}" в стиле ${style}`
+    :`A logo for brand "${brandName}" in ${style} style`;
+
+  try{
+    const resp=await fetch("https://api.replicate.com/v1/predictions",{
+      method:"POST",
+      headers:{
+        "Content-Type":"application/json",
+        "Authorization":`Token ${apiToken}`
+      },
+      body:JSON.stringify({
+        version:"13b576ee37e8bce5448d8e71c3c2f6f875f04e04b58e37b7b8f60edbcaecf26b", // SDXL-turbo
+        input:{prompt}
+      })
+    });
+    const data=await resp.json();
+    const getUrl=data.urls.get;
+    let output;
+    for(let i=0;i<8;i++){
+      const res=await fetch(getUrl,{headers:{"Authorization":`Token ${apiToken}`}});
+      const st=await res.json();
+      if(st.output){output=st.output[0];break;}
+      await new Promise(r=>setTimeout(r,1000));
+    }
+    if(!output) throw new Error("no output");
+    img.src=output;img.style.display="block";
+    dlBtn.style.display="inline-block";
+    againBtn.style.display="inline-block";
+    addToHistory(output);
+  }catch(e){
+    alert(text.error+": "+e.message);
+  }
+  genBtn.disabled=false;
+  genBtn.textContent=text.gen;
+}
+
+function addToHistory(url){
+  const thumb=document.createElement('img');
+  thumb.src=url;
+  thumb.onclick=()=>window.open(url,'_blank');
+  hist.prepend(thumb);
+  if(hist.children.length>10) hist.removeChild(hist.lastChild);
+}
+
+genBtn.onclick=generateLogo;
+againBtn.onclick=generateLogo;
+dlBtn.onclick=()=>{
+  const a=document.createElement('a');
+  a.href=img.src;a.download='logo.png';
+  document.body.appendChild(a);a.click();a.remove();
+};
+</script>
+</body>
+</html>
